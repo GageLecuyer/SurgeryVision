@@ -1,0 +1,42 @@
+{
+  "name": "ai-touchless-surgical-platform-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "frontend:install": "npm --prefix frontend install",
+    "frontend:build": "npm --prefix frontend run build",
+    "backend:build": "powershell -ExecutionPolicy Bypass -File ./scripts/build-backend.ps1",
+    "desktop:prepare": "npm run backend:build && npm run frontend:build",
+    "desktop:start": "npm run desktop:prepare && electron .",
+    "desktop:pack": "npm run desktop:prepare && electron-builder --win portable",
+    "desktop:dist": "npm run desktop:prepare && electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^35.1.2",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.aitouchless.surgicalplatform",
+    "productName": "AI Touchless Surgical Platform",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/**/*",
+      "frontend/dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "backend/bin/ai-touchless-surgical-platform-backend.exe",
+        "to": "backend/ai-touchless-surgical-platform-backend.exe"
+      }
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ]
+    }
+  }
+}

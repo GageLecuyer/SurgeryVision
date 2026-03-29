@@ -1,0 +1,888 @@
+:root {
+  color-scheme: dark;
+  --bg: #08111f;
+  --bg-soft: rgba(10, 24, 41, 0.84);
+  --panel: rgba(12, 31, 53, 0.76);
+  --panel-strong: rgba(15, 39, 66, 0.94);
+  --line: rgba(151, 207, 255, 0.18);
+  --text: #edf6ff;
+  --muted: #9bb6cd;
+  --cyan: #6de2ff;
+  --teal: #44d7b6;
+  --amber: #ffb347;
+  --red: #ff6b7d;
+  --shadow: 0 28px 80px rgba(0, 0, 0, 0.35);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  font-family: 'Space Grotesk', sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at top left, rgba(38, 94, 163, 0.38), transparent 32%),
+    radial-gradient(circle at top right, rgba(11, 200, 170, 0.18), transparent 28%),
+    linear-gradient(160deg, #030914 0%, #08111f 42%, #041019 100%);
+}
+
+button {
+  font: inherit;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.shell {
+  width: min(1400px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 32px 0 48px;
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: flex-start;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: linear-gradient(135deg, rgba(10, 28, 49, 0.96), rgba(6, 17, 32, 0.78));
+  box-shadow: var(--shadow);
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  align-items: center;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 28px;
+  background: linear-gradient(135deg, rgba(10, 28, 49, 0.96), rgba(6, 17, 32, 0.78));
+  box-shadow: var(--shadow);
+}
+
+.page-header h1 {
+  margin: 8px 0 0;
+  font-size: clamp(2rem, 3.4vw, 3.8rem);
+}
+
+.page-switcher {
+  display: flex;
+  gap: 12px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+
+.page-tab {
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.page-tab.active {
+  background: linear-gradient(180deg, rgba(109, 226, 255, 0.18), rgba(68, 215, 182, 0.1));
+  border-color: rgba(109, 226, 255, 0.62);
+}
+
+.patient-hero {
+  align-items: stretch;
+}
+
+.patient-hero-copy,
+.patient-hero-meta,
+.patient-badge-grid,
+.patient-summary-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.patient-hero-copy {
+  flex: 1.5;
+}
+
+.patient-hero-meta {
+  flex: 1;
+  align-content: start;
+}
+
+.chart-form {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.chart-input {
+  flex: 1;
+  min-width: 220px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  font: inherit;
+}
+
+.chart-submit,
+.sample-chart-chip {
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(109, 226, 255, 0.16), rgba(68, 215, 182, 0.08));
+  color: var(--text);
+  cursor: pointer;
+}
+
+.sample-charts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.sample-chart-chip {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lookup-error {
+  margin: 0;
+  color: #ffb8c2;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.patient-badge-grid,
+.patient-summary-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.eyebrow,
+.panel-kicker,
+.status-pill,
+.subtle,
+.metric span,
+.timeline-item span,
+.timeline-item time,
+.alert-card time {
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.eyebrow,
+.panel-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--cyan);
+  font-size: 0.74rem;
+}
+
+.hero h1,
+.panel h2 {
+  margin: 8px 0 0;
+}
+
+.hero h1 {
+  font-size: clamp(2.2rem, 4vw, 4.75rem);
+  line-height: 0.95;
+  max-width: 12ch;
+}
+
+.lede,
+.subtle,
+.alert-card p {
+  color: var(--muted);
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  white-space: nowrap;
+}
+
+.status-pill.online .status-dot,
+.status-badge.active::before {
+  background: var(--teal);
+}
+
+.status-pill.offline .status-dot {
+  background: var(--amber);
+}
+
+.status-dot,
+.status-badge::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.panel {
+  grid-column: span 6;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--panel);
+  backdrop-filter: blur(18px);
+  box-shadow: var(--shadow);
+}
+
+.panel-primary,
+.panel-wide {
+  grid-column: span 12;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.mode-row,
+.metrics,
+.command-grid,
+.overlay-grid,
+.recording-actions,
+.recording-status {
+  display: grid;
+  gap: 14px;
+}
+
+.mode-row {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.mode-card,
+.chip,
+.action-button {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.03);
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+  cursor: pointer;
+}
+
+.mode-card:hover,
+.chip:hover,
+.action-button:hover {
+  transform: translateY(-2px);
+  border-color: rgba(109, 226, 255, 0.42);
+}
+
+.chip.active,
+.action-button.active {
+  background: linear-gradient(180deg, rgba(109, 226, 255, 0.18), rgba(68, 215, 182, 0.1));
+  border-color: rgba(109, 226, 255, 0.62);
+  box-shadow: inset 0 0 0 1px rgba(109, 226, 255, 0.14), 0 0 22px rgba(109, 226, 255, 0.12);
+}
+
+.mode-card {
+  padding: 18px;
+  text-align: left;
+}
+
+.mode-card strong,
+.overlay-card strong,
+.metric strong,
+.risk-copy strong {
+  display: block;
+}
+
+.mode-card span,
+.metric span,
+.overlay-card span {
+  color: var(--muted);
+}
+
+.mode-card.active {
+  background: linear-gradient(180deg, rgba(109, 226, 255, 0.16), rgba(68, 215, 182, 0.07));
+  border-color: rgba(109, 226, 255, 0.44);
+}
+
+.metrics {
+  grid-template-columns: repeat(3, 1fr);
+  margin-top: 18px;
+}
+
+.metric,
+.timeline-item,
+.alert-card,
+.overlay-card {
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(151, 207, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.command-grid {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.vision-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(300px, 0.8fr);
+  gap: 18px;
+}
+
+.vision-screen {
+  min-height: 400px;
+}
+
+.scan-frame {
+  position: relative;
+  overflow: hidden;
+  min-height: 400px;
+  border-radius: 26px;
+  border: 1px solid rgba(109, 226, 255, 0.25);
+  background:
+    radial-gradient(circle at 30% 30%, rgba(91, 222, 255, 0.18), transparent 22%),
+    radial-gradient(circle at 70% 60%, rgba(68, 215, 182, 0.15), transparent 28%),
+    linear-gradient(180deg, rgba(3, 18, 34, 0.92), rgba(5, 15, 26, 0.96));
+}
+
+.camera-feed,
+.tracking-overlay,
+.camera-tint,
+.scan-grid {
+  position: absolute;
+  inset: 0;
+}
+
+.camera-feed {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+  filter: saturate(1) brightness(0.92) contrast(1.03);
+}
+
+.camera-tint {
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(5, 14, 28, 0.02), rgba(6, 20, 33, 0.12));
+}
+
+.tracking-overlay {
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.92;
+}
+
+.vision-hud span {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.hand-tracker {
+  position: absolute;
+  bottom: 34px;
+  width: 84px;
+  height: 120px;
+  border-radius: 30px 30px 24px 24px;
+  border: 1px solid rgba(68, 215, 182, 0.35);
+  background: linear-gradient(180deg, rgba(68, 215, 182, 0.1), rgba(68, 215, 182, 0.02));
+}
+
+.hand-tracker.left {
+  left: 36px;
+}
+
+.hand-tracker.right {
+  right: 36px;
+}
+
+.hand-tracker span {
+  position: absolute;
+  inset: 16px;
+  border-radius: 18px;
+  border: 1px dashed rgba(109, 226, 255, 0.35);
+}
+
+.vision-hud {
+  position: absolute;
+  z-index: 4;
+  left: 24px;
+  top: 24px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.scan-frame.freeze::after {
+  content: 'Frame locked';
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  transform: translateX(-50%);
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 179, 71, 0.35);
+  background: rgba(255, 179, 71, 0.12);
+  color: #ffe0b6;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.surgery-over-banner {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  text-align: center;
+  background: rgba(3, 9, 20, 0.42);
+  padding: 24px;
+}
+
+.surgery-over-banner strong {
+  font-size: 2rem;
+}
+
+.surgery-over-banner p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.vision-sidebar,
+.vision-stat-list {
+  display: grid;
+  gap: 14px;
+}
+
+.camera-fallback {
+  position: absolute;
+  inset: auto 24px 24px 24px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 179, 71, 0.35);
+  background: rgba(16, 24, 39, 0.82);
+  z-index: 2;
+}
+
+.camera-fallback strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.camera-fallback p,
+.camera-status,
+.gesture-guide-card p,
+.gesture-guide-card small {
+  color: var(--muted);
+}
+
+.camera-status {
+  margin: 12px 4px 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+}
+
+.gesture-effect-card {
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(151, 207, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.gesture-effect-card h3 {
+  margin: 10px 0 8px;
+}
+
+.cv-status-copy {
+  margin-top: 12px;
+}
+
+.gesture-guide-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.gesture-guide-card {
+  text-align: left;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(151, 207, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.gesture-guide-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(109, 226, 255, 0.42);
+}
+
+.gesture-guide-card.active {
+  background: linear-gradient(180deg, rgba(109, 226, 255, 0.16), rgba(68, 215, 182, 0.07));
+  border-color: rgba(109, 226, 255, 0.44);
+}
+
+.gesture-guide-head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.gesture-guide-head strong,
+.gesture-guide-head span,
+.gesture-guide-card small {
+  display: block;
+}
+
+.gesture-symbol {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: rgba(109, 226, 255, 0.12);
+  font-size: 1.5rem;
+}
+
+.gesture-guide-card p {
+  min-height: 72px;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.chip {
+  padding: 10px 14px;
+}
+
+.recording-actions {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.action-button {
+  padding: 14px 16px;
+  background: linear-gradient(180deg, rgba(109, 226, 255, 0.16), rgba(68, 215, 182, 0.08));
+}
+
+.action-button.secondary {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.upload-card {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  margin-bottom: 16px;
+  border-radius: 18px;
+  border: 1px dashed rgba(109, 226, 255, 0.32);
+  background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
+}
+
+.upload-card input {
+  display: none;
+}
+
+.upload-card span {
+  font-weight: 700;
+}
+
+.upload-card small,
+.media-placeholder p,
+.media-viewer-header span {
+  color: var(--muted);
+}
+
+.media-viewer {
+  min-height: 320px;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid rgba(151, 207, 255, 0.12);
+  background:
+    radial-gradient(circle at top left, rgba(109, 226, 255, 0.08), transparent 24%),
+    rgba(255, 255, 255, 0.03);
+}
+
+.simulation-controls {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.simulation-viewer {
+  min-height: 520px;
+}
+
+.simulation-stage {
+  display: grid;
+  place-items: center;
+  min-height: 420px;
+  overflow: hidden;
+  background: #030914;
+}
+
+.zoomable-media {
+  transition: transform 180ms ease;
+  transform-origin: center center;
+}
+
+.media-viewer-header,
+.media-placeholder {
+  padding: 18px;
+}
+
+.media-viewer-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid rgba(151, 207, 255, 0.1);
+}
+
+.uploaded-media {
+  display: block;
+  width: 100%;
+  max-height: 460px;
+  object-fit: contain;
+  background: #030914;
+}
+
+.recording-status {
+  grid-template-columns: repeat(2, max-content);
+  margin: 18px 0;
+}
+
+.saved-recordings-list {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.saved-recording-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(151, 207, 255, 0.12);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.saved-recording-card.active {
+  border-color: rgba(109, 226, 255, 0.48);
+  background: linear-gradient(180deg, rgba(109, 226, 255, 0.1), rgba(68, 215, 182, 0.06));
+}
+
+.saved-recording-card span,
+.download-link {
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+}
+
+.saved-recording-card strong,
+.saved-recording-card span {
+  display: block;
+}
+
+.voice-line {
+  max-width: 70ch;
+}
+
+.voice-toggle {
+  margin-top: 10px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.voice-toggle.active {
+  background: linear-gradient(180deg, rgba(109, 226, 255, 0.18), rgba(68, 215, 182, 0.1));
+  border-color: rgba(109, 226, 255, 0.62);
+}
+
+.saved-recording-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.download-link {
+  text-decoration: none;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+}
+
+.timeline {
+  display: grid;
+  gap: 12px;
+}
+
+.timeline-item strong,
+.alert-card strong {
+  margin-bottom: 4px;
+}
+
+.timeline-item span,
+.timeline-item time,
+.alert-card time {
+  display: block;
+  font-size: 0.84rem;
+}
+
+.overlay-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.overlay-card.high,
+.alert-card.high {
+  border-color: rgba(255, 107, 125, 0.4);
+}
+
+.overlay-card.medium,
+.alert-card.medium {
+  border-color: rgba(255, 179, 71, 0.45);
+}
+
+.overlay-card.low,
+.alert-card.low {
+  border-color: rgba(68, 215, 182, 0.3);
+}
+
+.risk-meter {
+  margin-top: 18px;
+}
+
+.risk-copy {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.risk-bar {
+  height: 16px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.risk-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--teal), var(--amber), var(--red));
+}
+
+.alerts {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.alert-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.loading-banner {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel-strong);
+  box-shadow: var(--shadow);
+}
+
+@media (max-width: 1080px) {
+  .panel,
+  .panel-primary,
+  .panel-wide {
+    grid-column: span 12;
+  }
+
+  .command-grid,
+  .vision-layout,
+  .overlay-grid,
+  .alerts,
+  .gesture-guide-grid,
+  .patient-badge-grid,
+  .patient-summary-grid,
+  .mode-row,
+  .recording-actions,
+  .metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .shell {
+    width: min(100% - 20px, 100%);
+    padding-top: 16px;
+  }
+
+  .hero,
+  .page-header,
+  .panel {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .hero,
+  .page-header {
+    flex-direction: column;
+  }
+
+  .chart-form {
+    flex-direction: column;
+  }
+
+  .page-switcher,
+  .saved-recording-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero h1 {
+    max-width: none;
+  }
+}
