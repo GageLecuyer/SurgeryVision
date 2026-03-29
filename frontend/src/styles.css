@@ -637,8 +637,127 @@ button {
   margin-bottom: 16px;
 }
 
+.simulation-layout {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.simulation-gesture-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.gesture-pill {
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(109, 226, 255, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.gesture-pill strong,
+.gesture-pill span {
+  display: block;
+}
+
+.gesture-pill strong {
+  font-size: 0.98rem;
+}
+
+.gesture-pill span {
+  margin-top: 6px;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
+}
+
+.simulation-panel {
+  grid-column: span 4;
+}
+
+.simulation-camera-shell {
+  position: relative;
+  min-height: 420px;
+  overflow: hidden;
+  border-radius: 20px;
+  border: 1px solid rgba(151, 207, 255, 0.12);
+  background:
+    radial-gradient(circle at top left, rgba(109, 226, 255, 0.08), transparent 24%),
+    rgba(255, 255, 255, 0.03);
+}
+
+.simulation-camera-feed {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  object-fit: cover;
+  transform: scaleX(-1);
+  filter: saturate(1) brightness(0.96) contrast(1.04);
+  background: #030914;
+}
+
+.simulation-camera-overlay {
+  position: absolute;
+  left: 18px;
+  top: 18px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.simulation-camera-overlay span {
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(109, 226, 255, 0.22);
+  background: rgba(3, 18, 34, 0.7);
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.78rem;
+}
+
+.simulation-tracking-overlay {
+  z-index: 1;
+}
+
+.simulation-fallback {
+  inset: auto 18px 18px 18px;
+}
+
 .simulation-viewer {
   min-height: 520px;
+}
+
+.simulation-command-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.simulation-command-card {
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(109, 226, 255, 0.16);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.simulation-command-card strong,
+.simulation-command-card span {
+  display: block;
+}
+
+.simulation-command-card strong {
+  font-size: 1rem;
+}
+
+.simulation-command-card span {
+  margin-top: 6px;
+  color: var(--muted);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.8rem;
 }
 
 .simulation-stage {
@@ -647,6 +766,10 @@ button {
   min-height: 420px;
   overflow: hidden;
   background: #030914;
+}
+
+.zoom-stage {
+  position: relative;
 }
 
 .zoomable-media {
@@ -669,9 +792,15 @@ button {
 .uploaded-media {
   display: block;
   width: 100%;
-  max-height: 460px;
+  height: 100%;
+  max-height: none;
   object-fit: contain;
   background: #030914;
+}
+
+.active-media-chip {
+  border-color: rgba(109, 226, 255, 0.62);
+  background: linear-gradient(180deg, rgba(109, 226, 255, 0.18), rgba(68, 215, 182, 0.1));
 }
 
 .recording-status {
@@ -842,6 +971,8 @@ button {
 
   .command-grid,
   .vision-layout,
+  .simulation-gesture-bar,
+  .simulation-layout,
   .overlay-grid,
   .alerts,
   .gesture-guide-grid,

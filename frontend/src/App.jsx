@@ -87,19 +87,26 @@ function App() {
   const [cvStatus, setCvStatus] = useState('Loading hand tracking...');
   const [trackedHands, setTrackedHands] = useState(0);
   const [detectedGesture, setDetectedGesture] = useState('Waiting for hand');
-  const [viewerAsset, setViewerAsset] = useState(null);
+  const [uploadedImages, setUploadedImages] = useState([]);
+  const [uploadedVideos, setUploadedVideos] = useState([]);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [selectedVideoId, setSelectedVideoId] = useState(null);
   const [selectedVoice, setSelectedVoice] = useState(fallbackState.lastVoiceCommand);
   const [savedRecordings, setSavedRecordings] = useState([]);
   const [selectedSavedRecordingId, setSelectedSavedRecordingId] = useState(null);
   const [surgeryEnded, setSurgeryEnded] = useState(false);
   const [simulationPaused, setSimulationPaused] = useState(false);
-  const [simulationZoom, setSimulationZoom] = useState(1);
+  const [visionZoom, setVisionZoom] = useState(1);
+  const [videoZoom, setVideoZoom] = useState(1);
+  const [imageZoom, setImageZoom] = useState(1);
+  const [simulationControlStatus, setSimulationControlStatus] = useState('Live camera is ready for zoom, pause, and swipe review.');
   const [voiceNavStatus, setVoiceNavStatus] = useState('Voice navigation ready.');
   const [voiceNavListening, setVoiceNavListening] = useState(false);
   const videoRef = useRef(null);
+  const simulationCameraRef = useRef(null);
   const canvasRef = useRef(null);
+  const simulationCanvasRef = useRef(null);
   const streamRef = useRef(null);
-  const viewerUrlRef = useRef(null);
   const handsRef = useRef(null);
   const animationFrameRef = useRef(null);
   const lastGestureSentAtRef = useRef(0);
@@ -109,14 +116,30 @@ function App() {
   const recordingChunksRef = useRef([]);
   const simulationMediaRef = useRef(null);
   const recognitionRef = useRef(null);
+  const swipeTrackerRef = useRef({ wristX: null, lastTriggeredAt: 0 });
+  const simulationGestureCooldownRef = useRef({ lastGesture: null, triggeredAt: 0 });
+  const pageRef = useRef('patient');
+  const voiceListeningDesiredRef = useRef(false);
 
   useEffect(() => {
     platformGestureRef.current = platform.lastGesture;
   }, [platform.lastGesture]);
 
   useEffect(() => {
+    pageRef.current = page;
+  }, [page]);
+
+  useEffect(() => {
     return () => {
       setSavedRecordings((current) => {
+        current.forEach((item) => URL.revokeObjectURL(item.url));
+        return current;
+      });
+      setUploadedImages((current) => {
+        current.forEach((item) => URL.revokeObjectURL(item.url));
+        return current;
+      });
+      setUploadedVideos((current) => {
         current.forEach((item) => URL.revokeObjectURL(item.url));
         return current;
       });
@@ -188,6 +211,14 @@ function App() {
             });
           };
         }
+        if (simulationCameraRef.current) {
+          simulationCameraRef.current.srcObject = stream;
+          simulationCameraRef.current.onloadedmetadata = () => {
+            simulationCameraRef.current?.play().catch(() => {
+              setCameraStatus('Camera connected, but playback was blocked. Click the page and allow autoplay if prompted.');
+            });
+          };
+        }
         setCameraReady(true);
         setCameraStatus('Live surgery feed connected. Keep your hand inside the guidance frame.');
       } catch {
@@ -207,7 +238,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!cameraReady || !videoRef.current) {
+    const trackingVideo = page === 'simulation' ? simulationCameraRef.current : videoRef.current;
+    const trackingCanvas = page === 'simulation' ? simulationCanvasRef.current : canvasRef.current;
+
+    if (!cameraReady || !trackingVideo || !trackingCanvas) {
       return undefined;
     }
 
@@ -225,8 +259,8 @@ function App() {
     hands.setOptions({
       maxNumHands: 1,
       modelComplexity: 1,
-      minDetectionConfidence: 0.6,
-      minTrackingConfidence: 0.6
+      minDetectionConfidence: 0.45,
+      minTrackingConfidence: 0.45
     });
 
     hands.onResults((results) => {
@@ -234,7 +268,7 @@ function App() {
         return;
       }
 
-      drawLandmarks(results, canvasRef.current, videoRef.current);
+      drawLandmarks(results, trackingCanvas, trackingVideo);
 
       const landmarks = results.multiHandLandmarks?.[0];
       const tracked = results.multiHandLandmarks?.length ?? 0;
@@ -243,11 +277,13 @@ function App() {
       if (!landmarks) {
         setDetectedGesture('Waiting for hand');
         setCvStatus('No hand detected. Raise one hand into the frame.');
+        swipeTrackerRef.current = { wristX: null, lastTriggeredAt: swipeTrackerRef.current.lastTriggeredAt };
         return;
       }
 
       const gesture = detectGesture(landmarks);
       const stableGesture = getStableGesture(gestureCandidateRef, gesture);
+      const swipeDirection = detectSwipeDirection(landmarks, swipeTrackerRef);
       setDetectedGesture(stableGesture ?? gesture ?? 'Hand detected');
       setCvStatus(
         stableGesture
@@ -257,7 +293,16 @@ function App() {
             : 'Hand detected. Adjust your fingers to match a command.'
       );
 
+      if (page === 'simulation' && swipeDirection) {
+        handleSimulationSwipe(swipeDirection);
+      }
+
       if (!stableGesture) {
+        return;
+      }
+
+      if (page === 'simulation') {
+        handleSimulationGesture(stableGesture);
         return;
       }
 
@@ -276,7 +321,7 @@ function App() {
     setCvStatus('Hand tracking active. Show one of the guided poses.');
 
     const detectFrame = async () => {
-      const video = videoRef.current;
+      const video = page === 'simulation' ? simulationCameraRef.current : videoRef.current;
       if (!video || cancelled) {
         return;
       }
@@ -304,22 +349,205 @@ function App() {
       handsRef.current = null;
       gestureCandidateRef.current = { name: null, count: 0 };
     };
-  }, [cameraReady]);
+  }, [cameraReady, page, uploadedImages.length]);
+
+  useEffect(() => {
+    if (!streamRef.current || !simulationCameraRef.current) {
+      return;
+    }
+
+    simulationCameraRef.current.srcObject = streamRef.current;
+    simulationCameraRef.current.play().catch(() => {
+      setCameraStatus('Camera connected, but playback was blocked. Click the page and allow autoplay if prompted.');
+    });
+  }, [cameraReady, page]);
 
   useEffect(() => {
     return () => {
-      if (viewerUrlRef.current) {
-        URL.revokeObjectURL(viewerUrlRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    return () => {
+      voiceListeningDesiredRef.current = false;
       recognitionRef.current?.stop();
       recognitionRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedVideoId && uploadedVideos.length > 0) {
+      setSelectedVideoId(uploadedVideos[0].id);
+    }
+  }, [selectedVideoId, uploadedVideos]);
+
+  const handleSimulationSwipe = (direction) => {
+    if (uploadedImages.length < 2) {
+      return;
+    }
+
+    cycleImage(direction === 'left' ? 1 : -1);
+    setSimulationControlStatus(
+      direction === 'left'
+        ? 'Swipe left detected. Showing the next image reference.'
+        : 'Swipe right detected. Showing the previous image reference.'
+    );
+  };
+
+  const handleSimulationGesture = (gesture) => {
+    const now = Date.now();
+    if (
+      simulationGestureCooldownRef.current.lastGesture === gesture &&
+      now - simulationGestureCooldownRef.current.triggeredAt < 1400
+    ) {
+      return;
+    }
+
+    simulationGestureCooldownRef.current = { lastGesture: gesture, triggeredAt: now };
+
+    if (gesture === 'Freeze Overlay') {
+      if (activeVideo) {
+        const wasPaused = simulationMediaRef.current?.paused ?? simulationPaused;
+        toggleSimulationPlayback();
+        setSimulationControlStatus(
+          wasPaused
+            ? 'Open palm detected. Resuming the current video.'
+            : 'Open palm detected. Pausing the current video.'
+        );
+      } else {
+        setSimulationControlStatus('Open palm detected. Upload a video to use pause and resume controls.');
+      }
+      return;
+    }
+
+    if (gesture === 'Pinch Zoom') {
+      if (activeVideo) {
+        zoomSimulation('video', 0.2);
+        setSimulationControlStatus('Pinch detected. Zooming further into the video frame.');
+      } else if (activeImage) {
+        zoomSimulation('image', 0.2);
+        setSimulationControlStatus('Pinch detected. Zooming further into the active image.');
+      }
+      return;
+    }
+
+    if (gesture === 'Focus Scan') {
+      if (activeVideo) {
+        zoomSimulation('video', -0.2);
+        setSimulationControlStatus('Single-finger focus detected. Zooming the video back out.');
+      } else if (activeImage) {
+        zoomSimulation('image', -0.2);
+        setSimulationControlStatus('Single-finger focus detected. Zooming the image back out.');
+      }
+      return;
+    }
+
+    if (gesture === 'Rotate View') {
+      if (uploadedImages.length > 1) {
+        cycleImage(1);
+        setSimulationControlStatus('Two-finger rotate detected. Moving to the next image reference.');
+      } else {
+        setSimulationControlStatus('Two-finger rotate detected. Upload more than one image to flip through references.');
+      }
+    }
+  };
+
+  const moveVoicePage = (direction) => {
+    const index = PAGE_ORDER.indexOf(pageRef.current);
+    const nextIndex =
+      direction === 'next'
+        ? (index + 1) % PAGE_ORDER.length
+        : (index - 1 + PAGE_ORDER.length) % PAGE_ORDER.length;
+    const nextPage = PAGE_ORDER[nextIndex];
+    setPage(nextPage);
+    setVoiceNavStatus(`Voice command: ${direction} tab -> ${PAGE_LABELS[nextPage]}`);
+  };
+
+  const handleVoiceCommand = (transcript) => {
+    const cleaned = transcript.toLowerCase().trim();
+
+    if (cleaned.includes('next tab') || cleaned.includes('next page')) {
+      moveVoicePage('next');
+      return true;
+    }
+
+    if (cleaned.includes('back tab') || cleaned.includes('previous tab') || cleaned.includes('previous page')) {
+      moveVoicePage('previous');
+      return true;
+    }
+
+    if (cleaned.includes('patient dashboard') || cleaned.includes('patient tab')) {
+      setPage('patient');
+      setVoiceNavStatus('Voice command: patient dashboard');
+      return true;
+    }
+
+    if (cleaned.includes('live surgery') || cleaned.includes('live tab') || cleaned.includes('vision tab')) {
+      setPage('vision');
+      setVoiceNavStatus('Voice command: live surgery');
+      return true;
+    }
+
+    if (cleaned.includes('surgery simulation') || cleaned.includes('simulation tab') || cleaned.includes('simulation')) {
+      setPage('simulation');
+      setVoiceNavStatus('Voice command: surgery simulation');
+      return true;
+    }
+
+    if (cleaned.includes('recording files') || cleaned.includes('files tab') || cleaned.includes('recordings tab')) {
+      setPage('files');
+      setVoiceNavStatus('Voice command: recording files');
+      return true;
+    }
+
+    setVoiceNavStatus(`Heard "${transcript}", but no tab command matched.`);
+    return false;
+  };
+
+  const toggleVoiceNavigationRestart = () => {
+    const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Recognition || recognitionRef.current || !voiceListeningDesiredRef.current) {
+      return;
+    }
+
+    const recognition = new Recognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = (event) => {
+      const result = event.results[event.results.length - 1];
+      if (!result?.isFinal) {
+        return;
+      }
+
+      handleVoiceCommand(result[0].transcript.trim());
+    };
+
+    recognition.onerror = (event) => {
+      if (event.error === 'no-speech' || event.error === 'aborted') {
+        return;
+      }
+
+      voiceListeningDesiredRef.current = false;
+      setVoiceNavListening(false);
+      setVoiceNavStatus('Voice navigation paused. Microphone permission may be blocked.');
+    };
+
+    recognition.onend = () => {
+      recognitionRef.current = null;
+
+      if (!voiceListeningDesiredRef.current) {
+        setVoiceNavListening(false);
+        setVoiceNavStatus('Voice navigation stopped.');
+        return;
+      }
+
+      window.setTimeout(() => {
+        toggleVoiceNavigationRestart();
+      }, 150);
+    };
+
+    recognition.start();
+    recognitionRef.current = recognition;
+    setVoiceNavListening(true);
+  };
 
   const toggleVoiceNavigation = () => {
     const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -328,7 +556,8 @@ function App() {
       return;
     }
 
-    if (voiceNavListening && recognitionRef.current) {
+    if (voiceListeningDesiredRef.current && recognitionRef.current) {
+      voiceListeningDesiredRef.current = false;
       recognitionRef.current.onend = null;
       recognitionRef.current.stop();
       recognitionRef.current = null;
@@ -341,49 +570,62 @@ function App() {
     recognition.continuous = true;
     recognition.interimResults = false;
     recognition.lang = 'en-US';
+    recognition.maxAlternatives = 1;
 
     recognition.onresult = (event) => {
-      const transcript = event.results[event.results.length - 1][0].transcript.toLowerCase();
-      if (transcript.includes('next tab')) {
-        const index = PAGE_ORDER.indexOf(page);
-        setPage(PAGE_ORDER[(index + 1) % PAGE_ORDER.length]);
-        setVoiceNavStatus('Voice command: next tab');
-      } else if (transcript.includes('back tab') || transcript.includes('previous tab')) {
-        const index = PAGE_ORDER.indexOf(page);
-        setPage(PAGE_ORDER[(index - 1 + PAGE_ORDER.length) % PAGE_ORDER.length]);
-        setVoiceNavStatus('Voice command: previous tab');
-      } else if (transcript.includes('live surgery')) {
-        setPage('vision');
-        setVoiceNavStatus('Voice command: live surgery');
-      } else if (transcript.includes('surgery simulation') || transcript.includes('simulation')) {
-        setPage('simulation');
-        setVoiceNavStatus('Voice command: surgery simulation');
-      } else if (transcript.includes('patient dashboard')) {
-        setPage('patient');
-        setVoiceNavStatus('Voice command: patient dashboard');
-      } else if (transcript.includes('recording files') || transcript.includes('files tab')) {
-        setPage('files');
-        setVoiceNavStatus('Voice command: recording files');
+      const result = event.results[event.results.length - 1];
+      if (!result?.isFinal) {
+        return;
       }
+
+      const transcript = result[0].transcript.trim();
+      handleVoiceCommand(transcript);
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
+      if (event.error === 'no-speech' || event.error === 'aborted') {
+        setVoiceNavStatus('Voice navigation listening. Waiting for a tab command.');
+        return;
+      }
+
+      voiceListeningDesiredRef.current = false;
       setVoiceNavListening(false);
       setVoiceNavStatus('Voice navigation paused. Microphone permission may be blocked.');
     };
 
     recognition.onend = () => {
-      setVoiceNavListening(false);
       recognitionRef.current = null;
-      setVoiceNavStatus('Voice navigation stopped.');
+
+      if (!voiceListeningDesiredRef.current) {
+        setVoiceNavListening(false);
+        setVoiceNavStatus('Voice navigation stopped.');
+        return;
+      }
+
+      setVoiceNavStatus('Voice navigation listening. Say a tab name or say next tab.');
+      window.setTimeout(() => {
+        if (!voiceListeningDesiredRef.current) {
+          return;
+        }
+
+        try {
+          toggleVoiceNavigationRestart();
+        } catch {
+          voiceListeningDesiredRef.current = false;
+          setVoiceNavListening(false);
+          setVoiceNavStatus('Voice navigation could not restart.');
+        }
+      }, 150);
     };
 
     try {
+      voiceListeningDesiredRef.current = true;
       recognition.start();
       recognitionRef.current = recognition;
       setVoiceNavListening(true);
-      setVoiceNavStatus('Voice navigation listening: say "next tab", "back tab", or a page name.');
+      setVoiceNavStatus('Voice navigation listening: say "next tab", "previous tab", or a page name.');
     } catch {
+      voiceListeningDesiredRef.current = false;
       setVoiceNavListening(false);
       setVoiceNavStatus('Voice navigation could not start.');
     }
@@ -433,27 +675,45 @@ function App() {
     await lookupPatient(chartInput.trim());
   };
 
-  const handleMediaUpload = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) {
+  const handleImageUpload = (event) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) {
       return;
     }
 
-    if (viewerUrlRef.current) {
-      URL.revokeObjectURL(viewerUrlRef.current);
+    setUploadedImages((current) => {
+      const nextItems = files.map((file) => ({
+        id: crypto.randomUUID(),
+        name: file.name,
+        url: URL.createObjectURL(file)
+      }));
+      const updated = [...current, ...nextItems];
+      setSelectedImageIndex(Math.max(0, updated.length - nextItems.length));
+      return updated;
+    });
+    setImageZoom(1);
+    setPage('simulation');
+    event.target.value = '';
+  };
+
+  const handleVideoUpload = (event) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) {
+      return;
     }
 
-    const url = URL.createObjectURL(file);
-    viewerUrlRef.current = url;
-    setViewerAsset({
+    const nextItems = files.map((file) => ({
       id: crypto.randomUUID(),
       name: file.name,
-      type: file.type.startsWith('video/') ? 'video' : 'image',
-      url
-    });
+      url: URL.createObjectURL(file)
+    }));
+
+    setUploadedVideos((current) => [...current, ...nextItems]);
+    setSelectedVideoId(nextItems[nextItems.length - 1].id);
     setSimulationPaused(false);
-    setSimulationZoom(1);
+    setVideoZoom(1);
     setPage('simulation');
+    event.target.value = '';
   };
 
   const startSavedRecording = async () => {
@@ -524,7 +784,7 @@ function App() {
   };
 
   const toggleSimulationPlayback = () => {
-    if (!viewerAsset || viewerAsset.type !== 'video' || !simulationMediaRef.current) {
+    if (!activeVideo || !simulationMediaRef.current) {
       return;
     }
     if (simulationMediaRef.current.paused) {
@@ -536,11 +796,26 @@ function App() {
     }
   };
 
-  const zoomSimulation = (delta) => {
-    setSimulationZoom((current) => Math.min(2.5, Math.max(0.7, current + delta)));
+  const zoomSimulation = (target, delta) => {
+    if (target === 'video') {
+      setVideoZoom((current) => Math.min(3.2, Math.max(1, current + delta)));
+      return;
+    }
+
+    setImageZoom((current) => Math.min(3.2, Math.max(1, current + delta)));
+  };
+
+  const cycleImage = (direction) => {
+    if (uploadedImages.length <= 1) {
+      return;
+    }
+
+    setSelectedImageIndex((index) => (index + direction + uploadedImages.length) % uploadedImages.length);
   };
 
   const selectedSavedRecording = savedRecordings.find((item) => item.id === selectedSavedRecordingId) || null;
+  const activeImage = uploadedImages[selectedImageIndex] || null;
+  const activeVideo = uploadedVideos.find((item) => item.id === selectedVideoId) || uploadedVideos[0] || null;
   const vision = getVisionState(platform);
   const activeGesture = gestureGuide[platform.lastGesture];
   const patient = platform.patient;
@@ -643,13 +918,21 @@ function App() {
             </div>
             <div className="vision-layout">
               <div className="vision-screen">
-              <div className={`scan-frame ${vision.freeze ? 'freeze' : ''}`}>
-                  <video ref={videoRef} className="camera-feed" autoPlay muted playsInline />
+                <div className={`scan-frame ${vision.freeze ? 'freeze' : ''}`}>
+                  <video
+                    ref={videoRef}
+                    className="camera-feed"
+                    autoPlay
+                    muted
+                    playsInline
+                    style={{ transform: `scaleX(-1) scale(${visionZoom})` }}
+                  />
                   <canvas ref={canvasRef} className="tracking-overlay" />
                   <div className="camera-tint" />
                   <div className="vision-hud">
+                    <span>Live surgery camera</span>
+                    <span>Recording view</span>
                     <span>CV confidence {vision.confidence}%</span>
-                    <span>{vision.overlayState}</span>
                     <span>{cameraReady ? 'Webcam live' : 'Camera unavailable'}</span>
                   </div>
                   {surgeryEnded && (
@@ -669,83 +952,26 @@ function App() {
               </div>
               <div className="vision-sidebar">
                 <div className="vision-stat-list">
-                  <Metric label="Tracked hands" value={`${trackedHands} / 1`} />
-                  <Metric label="Gesture inference" value={detectedGesture} />
+                  <Metric label="Recording camera" value={cameraReady ? 'Connected' : 'Offline'} />
+                  <Metric label="Zoom level" value={`${visionZoom.toFixed(1)}x`} />
                   <Metric label="Confidence" value={`${vision.confidence}%`} />
                 </div>
                 <div className="gesture-effect-card">
-                  <p className="panel-kicker">Gesture effect</p>
-                  <h3>{platform.lastGesture}</h3>
-                  <p className="subtle">{activeGesture.effect}</p>
-                  <p className="subtle cv-status-copy">{cvStatus}</p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="panel panel-wide">
-            <div className="panel-header">
-              <span className="panel-kicker">Gesture Guide</span>
-              <h2>How to do each hand command</h2>
-            </div>
-            <div className="gesture-guide-grid">
-              {GESTURES.map((gesture) => {
-                const guide = gestureGuide[gesture];
-                return (
-                  <button
-                    key={gesture}
-                    className={`gesture-guide-card ${platform.lastGesture === gesture ? 'active' : ''}`}
-                    onClick={() => sendAction('/gesture', { gesture })}
-                  >
-                    <div className="gesture-guide-head">
-                      <span className="gesture-symbol" aria-hidden="true">{guide.symbol}</span>
-                      <div>
-                        <strong>{gesture}</strong>
-                        <span>{guide.fingers}</span>
-                      </div>
-                    </div>
-                    <p>{guide.howTo}</p>
-                    <small>{guide.effect}</small>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="panel">
-            <div className="panel-header">
-              <span className="panel-kicker">Touchless Controls</span>
-              <h2>Gesture and voice commands</h2>
-            </div>
-            <div className="command-grid">
-              <div>
-                <h3>Gesture control</h3>
-                <p className="subtle">Last gesture: {platform.lastGesture}</p>
-                <div className="chip-row">
-                  {GESTURES.map((gesture) => (
-                    <button
-                      key={gesture}
-                      className={`chip ${platform.lastGesture === gesture ? 'active' : ''}`}
-                      onClick={() => sendAction('/gesture', { gesture })}
-                    >
-                      {gesture}
+                  <p className="panel-kicker">Live Controls</p>
+                  <h3>Recording camera zoom</h3>
+                  <div className="simulation-controls">
+                    <button className="sample-chart-chip" onClick={() => setVisionZoom((current) => Math.min(2.6, current + 0.2))}>
+                      Zoom in
                     </button>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <h3>Voice control</h3>
-                <p className="subtle">Last voice command: {platform.lastVoiceCommand}</p>
-                <div className="chip-row">
-                  {VOICE_COMMANDS.map((command) => (
-                    <button
-                      key={command}
-                      className={`chip ${selectedVoice === command ? 'active' : ''}`}
-                      onClick={() => sendAction('/voice', { command })}
-                    >
-                      {command}
+                    <button className="sample-chart-chip" onClick={() => setVisionZoom((current) => Math.max(1, current - 0.2))}>
+                      Zoom out
                     </button>
-                  ))}
+                    <button className="sample-chart-chip" onClick={() => setVisionZoom(1)}>
+                      Reset
+                    </button>
+                  </div>
+                  <p className="subtle">This tab is for the live recording camera. Surgery Simulation uses its own camera view for hand gestures and photo control.</p>
+                  <p className="subtle cv-status-copy">{cameraStatus}</p>
                 </div>
               </div>
             </div>
@@ -787,57 +1013,176 @@ function App() {
           <section className="panel panel-wide">
             <div className="panel-header">
               <span className="panel-kicker">Surgery Simulation</span>
-              <h2>Upload and control reference media</h2>
+              <h2>Live camera plus reference media</h2>
             </div>
-            <label className="upload-card">
-              <input type="file" accept="image/*,video/*" onChange={handleMediaUpload} />
-              <span>Choose image or video</span>
-              <small>Upload surgery images or simulation videos to review them here.</small>
-            </label>
-            <div className="simulation-controls">
-              <button className="sample-chart-chip" onClick={toggleSimulationPlayback} disabled={!viewerAsset || viewerAsset.type !== 'video'}>
-                {simulationPaused ? 'Resume video' : 'Pause video'}
-              </button>
-              <button className="sample-chart-chip" onClick={() => zoomSimulation(0.2)} disabled={!viewerAsset}>Zoom in</button>
-              <button className="sample-chart-chip" onClick={() => zoomSimulation(-0.2)} disabled={!viewerAsset}>Zoom out</button>
-              <button className="sample-chart-chip" onClick={() => setSimulationZoom(1)} disabled={!viewerAsset}>Reset zoom</button>
+            <div className="simulation-gesture-bar">
+              <div className="gesture-pill">
+                <strong>{'\u{1F44B}'} Swipe left or right</strong>
+                <span>Flip through image references</span>
+              </div>
+              <div className="gesture-pill">
+                <strong>{'\u270B'} Open palm</strong>
+                <span>Pause or resume the video</span>
+              </div>
+              <div className="gesture-pill">
+                <strong>{'\u{1F90F}'} Pinch</strong>
+                <span>Zoom in on the active image or video</span>
+              </div>
+              <div className="gesture-pill">
+                <strong>{'\u261D\uFE0F'} One finger</strong>
+                <span>Zoom back out</span>
+              </div>
             </div>
-            <div className="media-viewer simulation-viewer">
-              {viewerAsset ? (
-                <>
-                  <div className="media-viewer-header">
-                    <strong>{viewerAsset.name}</strong>
-                    <span>{viewerAsset.type === 'video' ? 'Simulation video' : 'Simulation image'}</span>
-                  </div>
-                  <div className="simulation-stage">
-                    {viewerAsset.type === 'video' ? (
-                      <video
-                        ref={simulationMediaRef}
-                        className="uploaded-media zoomable-media"
-                        src={viewerAsset.url}
-                        controls
-                        playsInline
-                        style={{ transform: `scale(${simulationZoom})` }}
-                        onPlay={() => setSimulationPaused(false)}
-                        onPause={() => setSimulationPaused(true)}
-                      />
-                    ) : (
-                      <img
-                        className="uploaded-media zoomable-media"
-                        src={viewerAsset.url}
-                        alt={viewerAsset.name}
-                        style={{ transform: `scale(${simulationZoom})` }}
-                      />
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="media-placeholder">
-                  <strong>No simulation media loaded</strong>
-                  <p>Upload a surgery image or video to control it from this page.</p>
+            <div className="simulation-layout">
+              <section className="panel simulation-panel">
+                <div className="panel-header">
+                  <span className="panel-kicker">Live Camera</span>
+                  <h2>See yourself while recording</h2>
                 </div>
-              )}
+                <div className="simulation-camera-shell">
+                  <video ref={simulationCameraRef} className="simulation-camera-feed" autoPlay muted playsInline />
+                  <canvas ref={simulationCanvasRef} className="tracking-overlay simulation-tracking-overlay" />
+                  <div className="simulation-camera-overlay">
+                    <span>{cameraReady ? 'Camera live' : 'Waiting for camera access'}</span>
+                    <span>{platform.recording ? 'Recording in progress' : 'Preview mode'}</span>
+                    <span>{trackedHands > 0 ? `Hand detected: ${detectedGesture}` : 'Show one hand to enable controls'}</span>
+                  </div>
+                  {!cameraReady && (
+                    <div className="camera-fallback simulation-fallback">
+                      <strong>Camera not ready</strong>
+                      <p>{cameraStatus}</p>
+                    </div>
+                  )}
+                </div>
+                <p className="camera-status">{cameraStatus}</p>
+              </section>
+
+              <section className="panel simulation-panel">
+                <div className="panel-header">
+                  <span className="panel-kicker">Image References</span>
+                  <h2>Upload and swipe through still images</h2>
+                </div>
+                <label className="upload-card">
+                  <input type="file" accept="image/*" multiple onChange={handleImageUpload} />
+                  <span>Add images</span>
+                  <small>Upload still references and swipe your hand left or right to flip through them.</small>
+                </label>
+                <div className="simulation-controls">
+                  <button className="sample-chart-chip" onClick={() => cycleImage(-1)} disabled={uploadedImages.length < 2}>Previous image</button>
+                  <button className="sample-chart-chip" onClick={() => cycleImage(1)} disabled={uploadedImages.length < 2}>Next image</button>
+                  <button className="sample-chart-chip" onClick={() => zoomSimulation('image', 0.2)} disabled={!activeImage}>Zoom in</button>
+                  <button className="sample-chart-chip" onClick={() => zoomSimulation('image', -0.2)} disabled={!activeImage}>Zoom out</button>
+                  <button className="sample-chart-chip" onClick={() => setImageZoom(1)} disabled={!activeImage}>Reset zoom</button>
+                </div>
+                <div className="simulation-command-list">
+                  <div className="simulation-command-card">
+                    <strong>{'\u{1F448}'} Swipe left</strong>
+                    <span>Next image</span>
+                  </div>
+                  <div className="simulation-command-card">
+                    <strong>{'\u{1F449}'} Swipe right</strong>
+                    <span>Previous image</span>
+                  </div>
+                  <div className="simulation-command-card">
+                    <strong>{'\u{1F90F}'} Pinch</strong>
+                    <span>Zoom in</span>
+                  </div>
+                  <div className="simulation-command-card">
+                    <strong>{'\u261D\uFE0F'} One finger</strong>
+                    <span>Zoom out</span>
+                  </div>
+                </div>
+                <p className="camera-status">
+                  {trackedHands > 0
+                    ? `Hand controls active. Current detection: ${detectedGesture}.`
+                    : 'Hand controls waiting for one visible hand in the camera frame.'}
+                </p>
+                <div className="media-viewer simulation-viewer">
+                  {activeImage ? (
+                    <>
+                      <div className="media-viewer-header">
+                        <strong>{activeImage.name}</strong>
+                        <span>{uploadedImages.length} image reference{uploadedImages.length === 1 ? '' : 's'}</span>
+                      </div>
+                      <div className="simulation-stage zoom-stage">
+                        <img
+                          className="uploaded-media zoomable-media"
+                          src={activeImage.url}
+                          alt={activeImage.name}
+                          style={{ transform: `scale(${imageZoom})` }}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="media-placeholder">
+                      <strong>No simulation images loaded</strong>
+                      <p>Upload surgery images to review them side by side with the camera and video feed.</p>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="panel simulation-panel">
+                <div className="panel-header">
+                  <span className="panel-kicker">Video References</span>
+                  <h2>Pause and zoom into videos</h2>
+                </div>
+                <label className="upload-card">
+                  <input type="file" accept="video/*" multiple onChange={handleVideoUpload} />
+                  <span>Add videos</span>
+                  <small>Upload surgery videos and zoom directly into the frame so the surgeon can inspect close detail.</small>
+                </label>
+                <div className="simulation-controls">
+                  <button className="sample-chart-chip" onClick={toggleSimulationPlayback} disabled={!activeVideo}>
+                    {simulationPaused ? 'Resume video' : 'Pause video'}
+                  </button>
+                  <button className="sample-chart-chip" onClick={() => zoomSimulation('video', 0.2)} disabled={!activeVideo}>Zoom in</button>
+                  <button className="sample-chart-chip" onClick={() => zoomSimulation('video', -0.2)} disabled={!activeVideo}>Zoom out</button>
+                  <button className="sample-chart-chip" onClick={() => setVideoZoom(1)} disabled={!activeVideo}>Reset zoom</button>
+                </div>
+                {uploadedVideos.length > 1 && (
+                  <div className="sample-charts">
+                    {uploadedVideos.map((item) => (
+                      <button
+                        key={item.id}
+                        className={`sample-chart-chip ${selectedVideoId === item.id ? 'active-media-chip' : ''}`}
+                        onClick={() => setSelectedVideoId(item.id)}
+                      >
+                        {item.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="media-viewer simulation-viewer">
+                  {activeVideo ? (
+                    <>
+                      <div className="media-viewer-header">
+                        <strong>{activeVideo.name}</strong>
+                        <span>{uploadedVideos.length} video reference{uploadedVideos.length === 1 ? '' : 's'}</span>
+                      </div>
+                      <div className="simulation-stage zoom-stage">
+                        <video
+                          ref={simulationMediaRef}
+                          className="uploaded-media zoomable-media"
+                          src={activeVideo.url}
+                          controls
+                          playsInline
+                          style={{ transform: `scale(${videoZoom})` }}
+                          onPlay={() => setSimulationPaused(false)}
+                          onPause={() => setSimulationPaused(true)}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="media-placeholder">
+                      <strong>No simulation videos loaded</strong>
+                      <p>Upload surgery videos to pause, resume, and zoom into the procedure footage.</p>
+                    </div>
+                  )}
+                </div>
+              </section>
             </div>
+            <p className="camera-status">{simulationControlStatus}</p>
           </section>
         </main>
       ) : (
@@ -929,20 +1274,49 @@ function detectGesture(landmarks) {
   const middleExtended = isFingerExtended(landmarks, 12, 10);
   const ringExtended = isFingerExtended(landmarks, 16, 14);
   const pinkyExtended = isFingerExtended(landmarks, 20, 18);
-  const thumbExtended = Math.abs(thumbTip.x - thumbIp.x) > 0.045;
+  const thumbExtended = Math.abs(thumbTip.x - thumbIp.x) > 0.035;
 
-  if (pinchRatio < 0.23 && indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
+  if (pinchRatio < 0.28 && indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
     return 'Pinch Zoom';
   }
-  if (extendedCount === 4 && thumbExtended) {
+  if (extendedCount >= 4 && thumbExtended) {
     return 'Freeze Overlay';
   }
   if (extendedCount === 1 && indexExtended && !middleExtended && !ringExtended && !pinkyExtended) {
     return 'Focus Scan';
   }
-  if (indexExtended && middleExtended && !ringExtended && !pinkyExtended && indexMiddleDistance / handSize > 0.16) {
+  if (indexExtended && middleExtended && !ringExtended && !pinkyExtended && indexMiddleDistance / handSize > 0.1) {
     return 'Rotate View';
   }
+  return null;
+}
+
+function detectSwipeDirection(landmarks, trackerRef) {
+  const wrist = landmarks[0];
+  const now = Date.now();
+
+  if (trackerRef.current.wristX === null) {
+    trackerRef.current = { wristX: wrist.x, lastTriggeredAt: trackerRef.current.lastTriggeredAt };
+    return null;
+  }
+
+  const deltaX = wrist.x - trackerRef.current.wristX;
+  trackerRef.current.wristX = wrist.x;
+
+  if (now - trackerRef.current.lastTriggeredAt < 900) {
+    return null;
+  }
+
+  if (deltaX > 0.08) {
+    trackerRef.current.lastTriggeredAt = now;
+    return 'right';
+  }
+
+  if (deltaX < -0.08) {
+    trackerRef.current.lastTriggeredAt = now;
+    return 'left';
+  }
+
   return null;
 }
 
@@ -956,7 +1330,7 @@ function getStableGesture(candidateRef, gesture) {
   } else {
     candidateRef.current = { name: gesture, count: 1 };
   }
-  return candidateRef.current.count >= 6 ? gesture : null;
+  return candidateRef.current.count >= 4 ? gesture : null;
 }
 
 function countExtendedFingers(landmarks) {
